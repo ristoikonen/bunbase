@@ -3,11 +3,8 @@ import { serve, type BunRequest } from "bun";
 import { mkdir, readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 
-import { generateGeminiContent } from "./services/ask_gemini";
-import { checkAndIncrementUsage } from "./services/dbratelimiter";
-import type { ChatApiResponse, ChatRequestPayload } from "./models/chatresponses";
-import { handleM2131Telemetry } from "./middleware/m2131Logger";
-import { generateIPHash } from "./utils/hash";
+//import { handleM2131Telemetry } from "./middleware/m2131Logger";
+//import { generateIPHash } from "./utils/hash";
 import { jsonResponse, errorResponse } from "./utils/response";
 
 const imageDir = "./images";
@@ -43,15 +40,7 @@ interface DataItem<K = string, V = string> {
     routes: {
       // Frontend UI at root and index.html are the same
       "/": () => {
-        const file = Bun.file("./public/images.html");
-        return file.exists().then((exists) => 
-          exists 
-            ? new Response(file, { headers: { "Content-Type": "text/html; charset=utf-8" } })
-            : errorResponse("Frontend UI index.html not found", 404)
-        );
-      },
-      "/index.html": () => {
-        const file = Bun.file("./public/images.html");
+        const file = Bun.file("./public/imagestext.html");
         return file.exists().then((exists) => 
           exists 
             ? new Response(file, { headers: { "Content-Type": "text/html; charset=utf-8" } })
@@ -83,13 +72,8 @@ interface DataItem<K = string, V = string> {
               /\.(txt|json)$/i.test(file)
             ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
 
-            //console.log(validImages);
-            //console.log(validTexts);
-
-            
             const keys: string[] = validTexts;
-
-            const values: string[] = validImages; //["Admin", "Senior Developer", "Editor"];
+            const values: string[] = validImages; 
 
             const dataArray: DataItem[] = await Promise.all(keys.map(async (key, index) => ({
               id: index + 1, // counter from 1
@@ -99,7 +83,6 @@ interface DataItem<K = string, V = string> {
             })));
 
             const jsonString: string = JSON.stringify(dataArray, null, 2);
-            console.log(jsonString);
 
             return jsonResponse(dataArray, 200, true);
           } catch (err: any) {
@@ -109,23 +92,6 @@ interface DataItem<K = string, V = string> {
         }
       },
 
-      // Main API Endpoint wrapped with M-21-31 Telemetry middleware
-      "/api/chat": {
-        POST: async (req: BunRequest) => {
-          return handleM2131Telemetry(req, async (innerReq: BunRequest) => {
-            try {
-              // ... your existing chat handler code ...
-              return jsonResponse("", 200, true);
-            } catch (err: any) {
-              console.error("[Error]:", err.message || err);
-              return jsonResponse({
-                success: false,
-                error: "An internal error occurred while processing your request. Please try again later.",
-              }, 500, true);
-            }
-          });
-        },
-      },
     },
 
     // Global catch-all block handles dynamic parameterized paths (/images/photo.jpg)
