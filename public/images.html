@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Production-Ready Ultra Slideshow</title>
+  
+  <style>
+    :root {
+      --accent: #ff4154;
+      --bg: #0b0b0c;
+    }
+    
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: white;
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Relative positioning wrapper to lock the caption inside the image canvas bounds */
+    .viewer-wrapper {
+      position: relative;
+      width: 85vw;
+      height: 75vh;
+    }
+
+    /* CSS Scroll Snap Container */
+    .slider-container {
+      display: flex;
+      width: 100%;
+      height: 100%;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      scroll-behavior: smooth;
+      border-radius: 12px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+      background: #000;
+      
+      /* Hide standard scrollbars */
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    .slider-container::-webkit-scrollbar {
+      display: none;
+    }
+
+    /* Style updates when the container enters native Fullscreen Mode */
+    .slider-container:fullscreen {
+      border-radius: 0;
+    }
+
+    /* Fullscreen layout sizing breakout rule hooks */
+    .viewer-wrapper:fullscreen-within {
+      width: 100vw;
+      height: 100vh;
+    }
+
+    .slide {
+      flex: 0 0 100%;
+      width: 100%;
+      height: 100%;
+      scroll-snap-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .slide img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      user-select: none;
+    }
+
+    /* Simple Absolute Floating Caption overlaying active images */
+    .filename-overlay {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: monospace;
+      letter-spacing: 0.5px;
+      color: rgba(255, 255, 255, 0.9);
+      pointer-events: none; /* Stops it interfering with double-clicks */
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      max-width: 80%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      z-index: 5;
+    }
+
+    .controls {
+      margin-top: 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    button {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: white;
+      padding: 12px 24px;
+      font-size: 15px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      backdrop-filter: blur(10px);
+    }
+
+    button:hover {
+      background: var(--accent);
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    .status-dot-container {
+      position: absolute;
+      bottom: 12vh;
+      display: flex;
+      gap: 8px;
+      z-index: 10;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.3);
+      transition: background 0.3s ease, transform 0.3s ease;
+    }
+
+    .dot.active {
+      background: var(--accent);
+      transform: scale(1.2);
+    }
+
+  </style>
+</head>
+<body>
+
+  <!-- Wrapper structure keeps components aligned over media boundaries -->
+  <div class="viewer-wrapper">
+    <!-- Hardware accelerated snap container (Double click to enter fullscreen) -->
+    <div class="slider-container" id="slider" ondblclick="toggleFullscreen()">
+      <div class="slide"><p>Loading gorgeous gallery...</p></div>
+    </div>
+    
+    <!-- Dynamic Filename Label Overlay -->
+    <div class="filename-overlay" id="filenameDisplay">Loading...</div>
+  </div>
+
+  <!-- Visual Pagination Indicators -->
+  <div class="status-dot-container" id="dots"></div>
+
+  <!-- Action Controls -->
+  <div class="controls">
+    <button onclick="prevSlide()">◀ Prev</button>
+    <button onclick="togglePlay()" id="playBtn">⏸ Pause</button>
+    <button onclick="nextSlide()">Next ▶</button>
+    <button onclick="toggleFullscreen()" id="fullscreenBtn">Fullscreen</button>
+  </div>
+
+
+  <script>
+    let images = [];
+    let texts = [];
+    let currentIndex = 0;
+    let autoplayInterval = null;
+    const AUTOPLAY_DELAY = 4000;
+
+    const slider = document.getElementById('slider');
+    const dotsContainer = document.getElementById('dots');
+    const playBtn = document.getElementById('playBtn');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const filenameDisplay = document.getElementById('filenameDisplay');
+
+    // Fetch images from Bun backend API
+    async function initSlideshow() {
+      try {
+        const res = await fetch('/api/images');
+    
+    const rawData = await res.json();        
+    let dataArray = [];
+
+    // 2. Normalize the data structure depending on what the API returned
+    if (Array.isArray(rawData)) {
+      dataArray = rawData;
+    } else if (rawData && Array.isArray(rawData.data)) {
+      dataArray = rawData.data; // Handles { data: [...] }
+    } else if (rawData && Array.isArray(rawData.images)) {
+      dataArray = rawData.images; // Handles { images: [...] }
+    } else if (typeof rawData === 'string') {
+      dataArray = JSON.parse(rawData); // Handles double-stringified JSON
+    }
+
+    // 3. Check if we successfully found an array before mapping
+    if (dataArray && dataArray.length > 0) {
+      const rawImageUrls = dataArray.map(item => item.fieldValue);
+      const rawTexts = dataArray.map(item => item.fieldKey);
+      console.log("Extracted URLs:", rawImageUrls);
+      images = rawImageUrls;
+      texts = rawTexts;
+    } else {
+      console.error("Could not find an array to map. Check your API response format.");
+    }
+
+        console.log(texts);
+        if (!images || images.length === 0) {
+          slider.innerHTML = '<div class="slide"><p>No photos found. Drop images into your folder!</p></div>';
+          filenameDisplay.style.display = 'none';
+          return;
+        }
+
+        buildSlideshowUI();
+        setupIntersectionObserver();
+        preloadNextAssets(0);
+        startAutoplay();
+      } catch (err) {
+        slider.innerHTML = '<div class="slide"><p>Failed to connect to media server.</p></div>';
+        filenameDisplay.style.display = 'none';
+      }
+    }
+
+    function buildSlideshowUI() {
+      slider.innerHTML = images.map((filename, i) => {
+        const optimizedSrc = `/images/${filename}?width=1400`;
+        return `
+          <div class="slide" id="slide-${i}">
+            <img src="${optimizedSrc}" alt="Slideshow Image ${i + 1}" draggable="false" loading="${i === 0 ? 'eager' : 'lazy'}">
+          </div>
+        `;
+      }).join('');
+
+      dotsContainer.innerHTML = images.map((_, i) => `
+        <div class="dot ${i === 0 ? 'active' : ''}" id="dot-${i}"></div>
+      `).join('');
+      
+      // Seed first display text directly
+      filenameDisplay.innerText = images[0];
+    }
+
+    // Tracking active slide via scroll physics
+    function setupIntersectionObserver() {
+      const observerOptions = {
+        root: slider,
+        threshold: 0.6
+      };
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const idString = entry.target.id.replace('slide-', '');
+            const index = parseInt(idString, 10);
+            updateUIState(index);
+          }
+        });
+      }, observerOptions);
+
+      document.querySelectorAll('.slide').forEach(slide => observer.observe(slide));
+    }
+
+    function updateUIState(newIndex) {
+      document.getElementById(`dot-${currentIndex}`)?.classList.remove('active');
+      currentIndex = newIndex;
+      document.getElementById(`dot-${currentIndex}`)?.classList.add('active');
+      
+      // Swap out filename display text to track the intersection array offset map
+      if(images[currentIndex]) {
+        filenameDisplay.innerText = images[currentIndex];
+      }
+
+      preloadNextAssets(currentIndex);
+    }
+
+    // Background browser memory preloader
+    function preloadNextAssets(activeIdx) {
+      const nextOffsets = [1, 2, 3];
+      nextOffsets.forEach(offset => {
+        const targetIndex = (activeIdx + offset) % images.length;
+        const targetUrl = `/images/${images[targetIndex]}?width=1400`;
+        
+        const preloadCacheWorker = new Image();
+        preloadCacheWorker.src = targetUrl; 
+      });
+    }
+
+    // Navigation Triggers
+    function nextSlide() {
+      if (currentIndex === images.length - 1) {
+        slider.scrollTo({ left: 0, behavior: 'smooth' });
+      } else {
+        slider.scrollBy({ left: slider.clientWidth, behavior: 'smooth' });
+      }
+    }
+
+    function prevSlide() {
+      if (currentIndex === 0) {
+        slider.scrollTo({ left: slider.scrollWidth, behavior: 'smooth' });
+      } else {
+        slider.scrollBy({ left: -slider.clientWidth, behavior: 'smooth' });
+      }
+    }
+
+    // Native HTML5 Fullscreen API Toggle Switch
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        slider.requestFullscreen().catch(err => {
+          console.error(`Error attempting to enable fullscreen: ${err.message}`);
+        });
+      } else {
+        document.exitFullscreen();
+      }
+    }
+
+    // Sync fullscreen button text when entering/exiting
+    document.addEventListener('fullscreenchange', () => {
+      if (document.fullscreenElement) {
+        fullscreenBtn.innerText = "Exit Fullscreen";
+      } else {
+        fullscreenBtn.innerText = "Fullscreen";
+        slider.scrollTo({ left: currentIndex * slider.clientWidth, behavior: 'instant' });
+      }
+    });
+
+    // Autoplay Operations
+    function startAutoplay() {
+      if (!autoplayInterval) {
+        autoplayInterval = setInterval(nextSlide, AUTOPLAY_DELAY);
+        playBtn.innerText = "⏸ Pause";
+      }
+    }
+
+    function stopAutoplay() {
+      clearInterval(autoplayInterval);
+      autoplayInterval = null;
+      playBtn.innerText = "▶ Play";
+    }
+
+    function togglePlay() {
+      autoplayInterval ? stopAutoplay() : startAutoplay();
+    }
+
+    // Keyboard hooks
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight') { stopAutoplay(); nextSlide(); }
+      if (e.key === 'ArrowLeft') { stopAutoplay(); prevSlide(); }
+      if (e.key === ' ') { e.preventDefault(); togglePlay(); } 
+      if (e.key.toLowerCase() === 'f') { e.preventDefault(); toggleFullscreen(); }
+    });
+
+    initSlideshow();
+  </script>
+</body>
+</html>

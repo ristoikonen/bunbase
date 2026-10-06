@@ -1,0 +1,5 @@
+High-Density Semantic Embeddings
+
+In modern AI (like Large Language Models), concepts, words, or images are packed into multi-dimensional vectors (often called embeddings).
+
+The Packing Power: Instead of a word being just a string of characters, it is packed into a vector of 768, 4,096, or even more dimensions. Each dimension represents a subtle feature or relationship (e.g., gender, tense, formality, contextual weight). This packs a rich, multidimensional "meaning" into a compact mathematical point.

@@ -1,0 +1,4 @@
+In a neural network, a gradient is a mathematical vector that calculates the direction and rate of steepest increase of the error function. 
+
+During training, the network makes a prediction and measures its mistake against the true target. The gradient represents the partial derivative of this error with respect to every single model weight. 
+By using an optimization algorithm like gradient descent, the network follows the negative gradient downhill—stepping backward away from errors. 

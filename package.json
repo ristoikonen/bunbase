@@ -1,0 +1,25 @@
+{
+  "name": "chatandbun",
+  "version": "1.0.0",
+  "description": "API with AI chat powered by Bun, TypeScript, and Gemini API",
+  "main": "server.ts",
+  "module": "server.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun --hot server.ts",
+    "start": "bun run server.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@google/genai": "^2.27.0",
+    "@libsql/client": "^0.18.0",
+    "google-logging-utils": "^2.0.1",
+    "zod": "^4.6.5"
+  }
+}

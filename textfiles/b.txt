@@ -1,0 +1,20 @@
+Processing words into high-dimensional embeddings (such as 768, 4,096, or higher dimensions) and processing text through a modern Transformer neural network requires massive, specialized computing power.
+
+The processing requirements span three distinct categories:
+
+1. Massive Parallelism (The GPU / TPU Requirement)
+Why it's needed: Packing a word into thousands of dimensions means every single token requires thousands of concurrent multiplication and addition operations (matrix-vector and matrix-matrix products). Doing this sequentially would take centuries.
+
+The Hardware: Modern AI relies heavily on GPUs (Graphics Processing Units) and TPUs (Tensor Processing Units). Unlike a standard computer CPU—which has a few powerful cores built for sequential tasks—GPUs feature tens of thousands of smaller cores designed to process thousands of matrix dimensions simultaneously in parallel.
+
+2. High-Bandwidth Memory (VRAM)
+Why it's needed: Large language models contain billions or trillions of parameters. When words are expanded into 4,096-dimensional vectors and passed through dozens of layers of attention mechanisms, the intermediate data footprint balloons rapidly.
+
+The Hardware: Systems require massive amounts of ultra-fast Video RAM (VRAM). High-end AI accelerators (like NVIDIA H100 or B200 chips) use High Bandwidth Memory (HBM) capable of transferring terabytes of data per second so that the processing cores never stall waiting for data.
+
+3. Specialized Matrix Engines (Tensor Cores)
+Why it's needed: Standard floating-point math operations are too slow for deep learning scales.
+
+The Hardware: Modern AI hardware incorporates specialized silicon blocks (such as NVIDIA Tensor Cores) that execute entire blocks of matrix multiplications in a single clock cycle, drastically accelerating the transformation of high-dimensional vectors.
+
+For a single inference query, consumer-grade hardware (like a modern desktop GPU) can handle smaller models (e.g., 768 to 4,096 dimensions) locally. However, training models or serving massive enterprise models requires entire cloud data center clusters networked together with high-speed interconnects.
