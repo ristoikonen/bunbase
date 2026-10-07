@@ -8,7 +8,8 @@
   "private": true,
   "scripts": {
     "dev": "bun --hot server.ts",
-    "start": "bun run server.ts"
+    "start": "bun run server.ts",
+    "build:windows": "bun build --compile --target=bun-windows-x64 ./server.ts --outfile ./bunbase.exe"
   },
   "devDependencies": {
     "@types/bun": "latest"

@@ -24,6 +24,16 @@ Not so hot..
 bun run start
 ```
 
+## Build a Windows executable
+
+On Windows with Bun installed, compile the server into `bunbase.exe`:
+
+```powershell
+bun run build:windows
+```
+
+Run `bunbase.exe` from the project directory. The server still reads `public/`, `images/`, and `textfiles/` at runtime, and requires its environment configuration (for example `GEMINI_API_KEY`), so keep those files and folders alongside the executable. Do not distribute a `.env` file containing secrets; configure required environment variables securely on the target machine.
+
 Clone the repository
 
 ```bash
