@@ -59,7 +59,7 @@ import { jsonResponse, errorResponse } from "./utils/response";
               return jsonResponse({
                 success: false,
                 error: "An internal error occurred while processing your request. Please try again later.",
-              }, 500, true);
+              }, 404, true);
             }
           });
         },
@@ -75,4 +75,4 @@ import { jsonResponse, errorResponse } from "./utils/response";
   process.exitCode = 1;
 });
 
-console.log(`Bun API running. http://localhost:3000`);
+console.log(`Bun API running. If local use:  http://localhost:3000`);
