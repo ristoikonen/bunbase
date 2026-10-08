@@ -77,7 +77,7 @@ import { jsonResponse, errorResponse } from "./utils/response";
               return jsonResponse({
                 success: false,
                 error: "An internal error occurred while processing your request. Please try again later.",
-              }, 404, true);
+              }, 500, true);
             }
           }, { getClientIp, storeRecoverableIp: false });
         },
@@ -91,7 +91,7 @@ import { jsonResponse, errorResponse } from "./utils/response";
               return jsonResponse({
                 success: false,
                 error: "An internal error occurred while processing your request. Please try again later.",
-              }, 404, true);
+              }, 500, true);
             }
           }, { getClientIp, storeRecoverableIp: true });
         },
@@ -99,7 +99,7 @@ import { jsonResponse, errorResponse } from "./utils/response";
     },
 
     async fetch(req: BunRequest) {
-      return jsonResponse("", 200, false);
+      return errorResponse("Not Found", 404, false);
     }
   });
 })().catch((err) => {
