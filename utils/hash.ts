@@ -49,7 +49,7 @@ export function getEncryptionKeyBytes(keyVersion: string): Uint8Array<ArrayBuffe
   const versionedKeyName = `IP_ENCRYPTION_KEY_${keyVersion.toUpperCase()}_HEX`;
   const keyHex =
     Bun.env[versionedKeyName] ??
-    (keyVersion === "v1" ? Bun.env.KEY32_HEX : undefined);
+    (keyVersion === "v1" ? Bun.env.IP_ENCRYPTION_KEY_V1_HEX : undefined);
 
   if (!keyHex || !/^[0-9a-fA-F]{64}$/.test(keyHex)) {
     throw new Error(`${versionedKeyName} must be a 64-character hex-encoded AES-256 key.`);
@@ -74,7 +74,7 @@ function toBase64(bytes: Uint8Array): string {
 /** Encrypts an IP address; retain nonce and ciphertext together to decrypt later. */
 export async function encryptIP(ip: string): Promise<EncryptedIp> {
   const plaintext = ipSchema.parse(ip);
-  const keyVersion = Bun.env.IP_ENCRYPTION_KEY_VERSION?.trim();
+  const keyVersion = Bun.env.IP_ENCRYPTION_KEY_VERSION?.trim().toLowerCase();
   if (!keyVersion) {
     throw new Error("IP_ENCRYPTION_KEY_VERSION is missing.");
   }
