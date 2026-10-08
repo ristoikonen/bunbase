@@ -1,12 +1,4 @@
 import { z } from "zod";
-import { createClient } from "@libsql/client";
-
-const db = createClient({
-    url: Bun.env.TURSO_DATABASE_URL || "file:local.db",
-    authToken: Bun.env.TURSO_AUTH_TOKEN,
-});
-
-
 
 const ipSchema = z.string().min(1, "IP cannot be empty");
 

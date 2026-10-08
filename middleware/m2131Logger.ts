@@ -1,6 +1,8 @@
 import type { BunRequest } from "bun";
+import { isIP } from "node:net";
 import { createClient } from "@libsql/client";
-import { generateIPHash } from "../utils/hash";
+import { encryptIP, generateIPHash } from "../utils/hash";
+import { errorResponse } from "../utils/response";
 
 const db = createClient({
     url: Bun.env.TURSO_DATABASE_URL || "file:local.db",
@@ -16,13 +18,50 @@ export interface M2131LogRecord {
   userAgent: string;
   statusCode?: number;
   durationMs: number;
+  clientIpNonce: string | null;
+  clientIpCiphertext: string | null;
+  encryptionKeyVersion: string | null;
+}
+
+export interface M2131TelemetryOptions {
+  getClientIp: (req: BunRequest) => string | null;
+  storeRecoverableIp?: boolean;
 }
 
 /**
  * Saves a log record to the Turso SQLite m2131_logs table.
  */
-async function saveLogToDb(record: M2131LogRecord): Promise<void> {
+async function saveLogToDb(
+  record: M2131LogRecord,
+  requireEncryptedStorage: boolean,
+): Promise<void> {
   try {
+    if (requireEncryptedStorage) {
+      await db.execute({
+        sql: `
+          INSERT INTO m2131_logs (
+            timestamp, correlation_id, method, path, client_ip_hash, user_agent,
+            status_code, duration_ms, client_ip_nonce, client_ip_ciphertext,
+            encryption_key_version
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        args: [
+          record.timestamp,
+          record.correlationId,
+          record.method,
+          record.path,
+          record.clientIpHash,
+          record.userAgent,
+          record.statusCode ?? null,
+          record.durationMs,
+          record.clientIpNonce,
+          record.clientIpCiphertext,
+          record.encryptionKeyVersion,
+        ],
+      });
+      return;
+    }
+
     await db.execute({
       sql: `
         INSERT INTO m2131_logs (
@@ -42,6 +81,9 @@ async function saveLogToDb(record: M2131LogRecord): Promise<void> {
     });
   } catch (dbError) {
     console.error("CRITICAL: Failed to write telemetry log to Turso database:", dbError);
+    if (requireEncryptedStorage) {
+      throw new Error("Failed to persist telemetry with encrypted IP.", { cause: dbError });
+    }
   }
 }
 
@@ -71,15 +113,42 @@ export function formatM2131Log(record: M2131LogRecord): string {
  */
 export async function handleM2131Telemetry(
   req: BunRequest,
-  next: (req: BunRequest) => Promise<Response>
+  next: (req: BunRequest) => Promise<Response>,
+  options: M2131TelemetryOptions,
 ): Promise<Response> {
+  const storeRecoverableIp = options.storeRecoverableIp ?? false;
   const start = performance.now();
   // Leverage Bun's native global crypto Web API for secure correlation tracking
   const correlationId = req.headers.get("x-correlation-id") || crypto.randomUUID();
-  
-  // Extract dual IP source indicators securely
-  const rawIp = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "127.0.0.1";
+
+  const rawIp = options.getClientIp(req);
+  if (!rawIp || isIP(rawIp) === 0) {
+    console.error("Unable to determine a valid client IP from the connection.");
+    return errorResponse("Client IP is unavailable.", 503);
+  }
+
   const clientIpHash = await generateIPHash(rawIp);
+  let clientIpNonce: string | null = null;
+  let clientIpCiphertext: string | null = null;
+  let encryptionKeyVersion: string | null = null;
+
+  if (storeRecoverableIp) {
+    encryptionKeyVersion = Bun.env.IP_ENCRYPTION_KEY_VERSION?.trim() || null;
+    if (!encryptionKeyVersion) {
+      console.error("Recoverable IP logging is enabled but IP_ENCRYPTION_KEY_VERSION is missing.");
+      return errorResponse("Encrypted IP logging is unavailable.", 503);
+    }
+
+    try {
+      const encryptedIp = await encryptIP(rawIp);
+      clientIpNonce = encryptedIp.nonce;
+      clientIpCiphertext = encryptedIp.ciphertext;
+    } catch (error) {
+      console.error("Recoverable IP logging encryption failed.", error);
+      return errorResponse("Encrypted IP logging is unavailable.", 503);
+    }
+  }
+
   const userAgent = req.headers.get("user-agent") || "unknown";
 
   const url = new URL(req.url);
@@ -98,10 +167,13 @@ export async function handleM2131Telemetry(
       userAgent,
       statusCode: 500,
       durationMs,
+      clientIpNonce,
+      clientIpCiphertext,
+      encryptionKeyVersion,
     };
     
     console.error(formatM2131Log(errorRecord));
-    await saveLogToDb(errorRecord);
+    await saveLogToDb(errorRecord, storeRecoverableIp);
     
     throw error;
   }
@@ -116,10 +188,13 @@ export async function handleM2131Telemetry(
     userAgent,
     statusCode: response.status,
     durationMs,
+    clientIpNonce,
+    clientIpCiphertext,
+    encryptionKeyVersion,
   };
 
   console.log('LOG:' + formatM2131Log(logRecord));
-  await saveLogToDb(logRecord);
+  await saveLogToDb(logRecord, storeRecoverableIp);
 
   const newHeaders = new Headers(response.headers);
   newHeaders.set("X-Correlation-ID", correlationId);

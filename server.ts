@@ -1,5 +1,6 @@
 // @ts-ignore Bun provides this module at runtime; its types may not be installed in the editor.
 import { serve, type BunRequest } from "bun";
+import { isIP } from "node:net";
 //import { mkdir, readFile, readdir } from "node:fs/promises";
 
 //import { generateGeminiContent } from "./services/ask_gemini";
@@ -24,6 +25,22 @@ import { jsonResponse, errorResponse } from "./utils/response";
   //    throw new Error("Missing GEMINI_API_KEY environment variable.");
   //}
   //const ai = new GoogleGenAI();
+
+
+  const getClientIp = (req: Request): string | null => {
+    const peerIp = server?.requestIP(req)?.address;
+    if (!peerIp) return null;
+
+    const trustedProxyIp = Bun.env.TRUSTED_PROXY_IP?.trim();
+    if (trustedProxyIp && peerIp === trustedProxyIp) {
+      const forwardedIp = req.headers.get("x-forwarded-for")?.trim();
+      if (forwardedIp && !forwardedIp.includes(",") && isIP(forwardedIp) !== 0) {
+        return forwardedIp;
+      }
+    }
+
+    return peerIp;
+  };
 
   const server = serve({
     port: port,
@@ -61,7 +78,21 @@ import { jsonResponse, errorResponse } from "./utils/response";
                 error: "An internal error occurred while processing your request. Please try again later.",
               }, 404, true);
             }
-          });
+          }, { getClientIp, storeRecoverableIp: false });
+        },
+        GET:async (req: BunRequest) => {
+          return handleM2131Telemetry(req, async (innerReq: BunRequest) => {
+            try {
+              // tester
+              return jsonResponse("GET /api/log", 200, true);
+            } catch (err: any) {
+              console.error("[Error]:", err.message || err);
+              return jsonResponse({
+                success: false,
+                error: "An internal error occurred while processing your request. Please try again later.",
+              }, 404, true);
+            }
+          }, { getClientIp, storeRecoverableIp: true });
         },
       },
     },
