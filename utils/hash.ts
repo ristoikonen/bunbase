@@ -47,9 +47,10 @@ export function getEncryptionKeyBytes(keyVersion: string): Uint8Array<ArrayBuffe
   }
 
   const versionedKeyName = `IP_ENCRYPTION_KEY_${keyVersion.toUpperCase()}_HEX`;
-  const keyHex =
-    Bun.env[versionedKeyName] ??
-    (keyVersion === "v1" ? Bun.env.IP_ENCRYPTION_KEY_V1_HEX : undefined);
+  const keyHex =  Bun.env[versionedKeyName];
+
+  //  (keyVersion === "v1" ? Bun.env.IP_ENCRYPTION_KEY_V1_HEX : undefined);
+  //    const keyHex = (keyVersion === "v1" ? Bun.env.IP_ENCRYPTION_KEY_V1_HEX : undefined);
 
   if (!keyHex || !/^[0-9a-fA-F]{64}$/.test(keyHex)) {
     throw new Error(`${versionedKeyName} must be a 64-character hex-encoded AES-256 key.`);
