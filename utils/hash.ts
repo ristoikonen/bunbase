@@ -4,19 +4,32 @@ const ipSchema = z.string().min(1, "IP cannot be empty");
 
 
 export async function generateIPHash(ip: string): Promise<string> {
-  const pepper = Bun.env.OPENSSL_HEX_SECRET_PEPPER;
-  
-  if (!pepper) {
-    throw new Error("CRITICAL: OPENSSL_HEX_SECRET_PEPPER is missing from environment variables!");
+  const keyHex = Bun.env.IP_HMAC_KEY_HEX;
+
+  if (!keyHex || !/^[0-9a-fA-F]{64}$/.test(keyHex)) {
+    throw new Error("IP_HMAC_KEY_HEX must be a 64-character hex-encoded HMAC key.");
   }
 
-  const rawData = `${ip}:${pepper}`;
-  const encoder = new TextEncoder();
-  const data = encoder.encode(rawData);
+  const keyBytes = new Uint8Array(32);
+  for (let i = 0; i < keyBytes.length; i++) {
+    keyBytes[i] = Number.parseInt(keyHex.slice(i * 2, i * 2 + 2), 16);
+  }
 
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+  const key = await crypto.subtle.importKey(
+    "raw",
+    keyBytes,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const mac = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(ipSchema.parse(ip)),
+  );
+  const hashHex = Array.from(new Uint8Array(mac))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
 
   return `anon_${hashHex.substring(0, 24)}`;
 }
