@@ -81,6 +81,7 @@ import { jsonResponse, errorResponse } from "./utils/response";
             }
           }, { getClientIp, storeRecoverableIp: false });
         },
+        //NOTE: For debug purposes stores recoverable IPs (encrypted) without authentication! Remove in prod!
         GET:async (req: BunRequest) => {
           return handleM2131Telemetry(req, async (innerReq: BunRequest) => {
             try {

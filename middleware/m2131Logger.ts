@@ -80,9 +80,13 @@ async function saveLogToDb(
       ],
     });
   } catch (dbError) {
-    console.error("CRITICAL: Failed to write telemetry log to Turso database:", dbError);
+    console.error(
+      "Telemetry write to Turso failed; continuing request without persisted telemetry.",
+      dbError,
+    );
     if (requireEncryptedStorage) {
       throw new Error("Failed to persist telemetry with encrypted IP.", { cause: dbError });
+
     }
   }
 }
@@ -141,6 +145,7 @@ export async function handleM2131Telemetry(
 
     try {
       const encryptedIp = await encryptIP(rawIp);
+      encryptionKeyVersion = encryptedIp.keyVersion;
       clientIpNonce = encryptedIp.nonce;
       clientIpCiphertext = encryptedIp.ciphertext;
     } catch (error) {
