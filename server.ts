@@ -43,6 +43,7 @@ import { jsonResponse, errorResponse } from "./utils/response";
   };
 
   const server = serve({
+    hostname: host,
     port: port,
     routes: {
       // Frontend UI at root and index.html are the same
