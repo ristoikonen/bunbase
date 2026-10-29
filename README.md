@@ -1,6 +1,6 @@
-# Bunbase
+# TinyToken
 
-TEMPLATE FOR BUN APPS.
+
 
 ## Run it
 

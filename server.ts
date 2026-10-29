@@ -1,11 +1,10 @@
 // @ts-ignore Bun provides this module at runtime; its types may not be installed in the editor.
 import { serve, type BunRequest } from "bun";
-import { isIP } from "node:net";
+//import { isIP } from "node:net";
 //import { mkdir, readFile, readdir } from "node:fs/promises";
-
 //import { generateGeminiContent } from "./services/ask_gemini";
 //import { checkAndIncrementUsage } from "./services/dbratelimiter";
-import { handleM2131Telemetry } from "./middleware/m2131Logger";
+//import { handleM2131Telemetry } from "./middleware/m2131Logger";
 //import { generateIPHash } from "./utils/hash";
 import { jsonResponse, errorResponse } from "./utils/response";
 
@@ -26,22 +25,6 @@ import { jsonResponse, errorResponse } from "./utils/response";
   //}
   //const ai = new GoogleGenAI();
 
-
-  const getClientIp = (req: Request): string | null => {
-    const peerIp = server?.requestIP(req)?.address;
-    if (!peerIp) return null;
-
-    const trustedProxyIp = Bun.env.TRUSTED_PROXY_IP?.trim();
-    if (trustedProxyIp && peerIp === trustedProxyIp) {
-      const forwardedIp = req.headers.get("x-forwarded-for")?.trim();
-      if (forwardedIp && !forwardedIp.includes(",") && isIP(forwardedIp) !== 0) {
-        return forwardedIp;
-      }
-    }
-
-    return peerIp;
-  };
-
   const server = serve({
     hostname: host,
     port: port,
@@ -49,53 +32,19 @@ import { jsonResponse, errorResponse } from "./utils/response";
       // Frontend UI at root and index.html are the same
       "/": () => {
         const file = Bun.file("./public/index.html");
-        return file.exists().then((exists) => 
-          exists 
+        return file.exists().then((exists) =>
+          exists
             ? new Response(file, { headers: { "Content-Type": "text/html; charset=utf-8" } })
             : errorResponse("Index.html not found", 404)
         );
       },
       "/index.html": () => {
         const file = Bun.file("./public/index.html");
-        return file.exists().then((exists) => 
-          exists 
+        return file.exists().then((exists) =>
+          exists
             ? new Response(file, { headers: { "Content-Type": "text/html; charset=utf-8" } })
             : errorResponse("Index.html not found", 404)
         );
-      },
-      
-
-      // Main API Endpoint wrapped with M-21-31 Telemetry middleware
-      "/api/log": {
-        POST: async (req: BunRequest) => {
-          return handleM2131Telemetry(req, async (innerReq: BunRequest) => {
-            try {
-              // ... code here ...
-              return jsonResponse("/api/log", 200, true);
-            } catch (err: any) {
-              console.error("[Error]:", err.message || err);
-              return jsonResponse({
-                success: false,
-                error: "An internal error occurred while processing your request. Please try again later.",
-              }, 500, true);
-            }
-          }, { getClientIp, storeRecoverableIp: false });
-        },
-        //NOTE: For debug purposes stores recoverable IPs (encrypted) without authentication! Remove in prod!
-        GET:async (req: BunRequest) => {
-          return handleM2131Telemetry(req, async (innerReq: BunRequest) => {
-            try {
-              // tester
-              return jsonResponse("GET /api/log", 200, true);
-            } catch (err: any) {
-              console.error("[Error]:", err.message || err);
-              return jsonResponse({
-                success: false,
-                error: "An internal error occurred while processing your request. Please try again later.",
-              }, 500, true);
-            }
-          }, { getClientIp, storeRecoverableIp: true });
-        },
       },
     },
 
